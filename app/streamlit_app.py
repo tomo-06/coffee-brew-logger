@@ -4,6 +4,9 @@ import datetime
 
 import streamlit as st
 
+from supabase_client import get_supabase_client
+import datetime
+
 st.set_page_config(page_title="Coffee Brew Logger", page_icon="☕", layout="centered")
 
 st.title("Coffee Brew Logger ☕")
@@ -98,26 +101,40 @@ with st.form("brew_form"):
     submitted = st.form_submit_button("記録する")
 
 if submitted:
-    # ここでDB保存をする予定（今は画面表示だけ）
-    st.success("記録しました ✅（今は画面表示のみ。あとでDB保存処理を追加します）")
+    supabase = get_supabase_client()
 
-    st.json(
-        {
-            "user_id": user_id,
-            "brewed_at": str(brewed_at),
-            "bean_name": bean_name,
-            "roaster": roaster,
-            "roast_level": roast_level,
-            "method": method,
-            "grind_size": grind_size,
-            "dose_g": dose_g,
-            "water_ml": water_ml,
-            "water_temp_c": water_temp_c,
-            "total_time_sec": total_time_sec,
-            "rating": rating,
-            "notes": notes,
-        }
-    )
+    # brewed_at は date だけなので、いったん 00:00:00 として timestamptz に入れる（簡易）
+    brewed_at_dt = datetime.datetime.combine(brewed_at, datetime.time(0, 0))
 
-    # 1回記録したらタイマー結果はリセットしておく
-    st.session_state["total_time_sec"] = None
+    payload = {
+        "user_id": user_id,
+        "brewed_at": brewed_at_dt.isoformat(),
+        "bean_name": bean_name,
+        "roaster": roaster or None,
+        "roast_level": None if roast_level == "未選択" else roast_level,
+        "method": None if method == "未選択" else method,
+        "grind_size": None if grind_size == "未選択" else grind_size,
+        "dose_g": float(dose_g),
+        "water_ml": int(water_ml) if water_ml else None,
+        "water_temp_c": int(water_temp_c) if water_temp_c else None,
+        "total_time_sec": int(total_time_sec) if total_time_sec else None,
+        "rating": int(rating) if rating else None,
+        "notes": notes or None,
+    }
+
+    try:
+        res = supabase.table("brews").insert(payload).execute()
+
+        # res.data に挿入された行が返ってきます（通常1件）
+        inserted = res.data[0] if res.data else None
+        st.success("記録しました ✅")
+
+        if inserted and "id" in inserted:
+            st.write(f"保存ID: `{inserted['id']}`")
+
+        # 1回記録したらタイマー結果をリセット
+        st.session_state["total_time_sec"] = None
+
+    except Exception as e:
+        st.error("保存に失敗しました ❌")
+        st.exception(e)
