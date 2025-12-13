@@ -5,29 +5,85 @@ import datetime
 import streamlit as st
 
 from supabase_client import get_supabase_client
-import datetime
 
-st.set_page_config(page_title="Coffee Brew Logger", page_icon="☕", layout="centered")
+
+# =========================
+# Page config
+# =========================
+st.set_page_config(
+    page_title="Coffee Brew Logger",
+    page_icon="☕",
+    layout="centered",
+)
 
 st.title("Coffee Brew Logger ☕")
 st.caption("抽出条件＋タイマー付きの簡易ログアプリ（MVP）")
 
-# --- ユーザー選択 ---
+
+# =========================
+# Session state 初期化
+# =========================
+if "timer_start" not in st.session_state:
+    st.session_state["timer_start"] = None
+
+if "total_time_sec" not in st.session_state:
+    st.session_state["total_time_sec"] = None
+
+if "flash" not in st.session_state:
+    st.session_state["flash"] = None
+
+if "do_reset" not in st.session_state:
+    st.session_state["do_reset"] = False
+
+
+# =========================
+# フォーム初期値 & リセット
+# =========================
+FORM_DEFAULTS = {
+    "brewed_at": datetime.date.today(),
+    "bean_name": "",
+    "roaster": "",
+    "roast_level": "中煎り",
+    "method": "ドリッパー",
+    "grind_size": "中細挽き",
+    "dose_g": 15.0,
+    "water_ml": 200,
+    "water_temp_c": 90,
+    "total_time_sec_input": 0,
+    "rating": 4,
+    "notes": "",
+}
+
+def reset_form():
+    for k, v in FORM_DEFAULTS.items():
+        st.session_state[k] = v
+
+    st.session_state["timer_start"] = None
+    st.session_state["total_time_sec"] = None
+
+
+# =========================
+# フラッシュメッセージ
+# =========================
+if st.session_state["flash"]:
+    st.success(st.session_state["flash"])
+    st.session_state["flash"] = None
+
+
+# =========================
+# ユーザー選択
+# =========================
 st.subheader("誰が淹れている？")
 user = st.radio("ユーザー", ["自分", "友人"], horizontal=True)
-
-# 内部的なID化（あとでDBに入れる時に使いやすくする）
 user_id = "me" if user == "自分" else "friend"
 
 st.divider()
 
-# --- タイマー機能 ---
-st.subheader("抽出タイマー")
 
-if "timer_start" not in st.session_state:
-    st.session_state["timer_start"] = None
-if "total_time_sec" not in st.session_state:
-    st.session_state["total_time_sec"] = None
+# =========================
+# タイマー
+# =========================
+st.subheader("抽出タイマー")
 
 col1, col2 = st.columns(2)
 
@@ -35,7 +91,7 @@ with col1:
     if st.button("▶ START"):
         st.session_state["timer_start"] = time.time()
         st.session_state["total_time_sec"] = None
-        st.success("タイマーを開始しました")
+        st.info("タイマーを開始しました")
 
 with col2:
     if st.button("⏹ STOP"):
@@ -47,7 +103,6 @@ with col2:
             st.session_state["timer_start"] = None
             st.success(f"総抽出時間: {elapsed} 秒")
 
-# 現在の状態表示
 if st.session_state["timer_start"] is not None:
     st.info("計測中... STOP を押すと総抽出時間が記録されます")
 elif st.session_state["total_time_sec"] is not None:
@@ -55,56 +110,124 @@ elif st.session_state["total_time_sec"] is not None:
 
 st.divider()
 
-# --- 抽出条件フォーム ---
+
+# =========================
+# 抽出条件フォーム
+# =========================
 st.subheader("抽出条件の記録")
 
-with st.form("brew_form"):
-    # 抽出日（デフォルトは今日）
-    brewed_at = st.date_input("抽出日", value=datetime.date.today())
+# 次回rerunの冒頭でフォームを初期化する（ウィジェット生成前に実行）
+if st.session_state["do_reset"]:
+    for k, v in FORM_DEFAULTS.items():
+        st.session_state[k] = v
 
-    bean_name = st.text_input("豆の名前（例：エチオピア ナチュラル）")
-    roaster = st.text_input("ロースター（お店の名前）", placeholder="任意")
+    st.session_state["timer_start"] = None
+    st.session_state["total_time_sec"] = None
+    st.session_state["do_reset"] = False
+
+with st.form("brew_form"):
+    brewed_at = st.date_input(
+        "抽出日",
+        key="brewed_at",
+    )
+
+    bean_name = st.text_input(
+        "豆の名前（例：エチオピア ナチュラル）",
+        key="bean_name",
+    )
+
+    roaster = st.text_input(
+        "ロースター（お店の名前）",
+        placeholder="任意",
+        key="roaster",
+    )
 
     roast_level = st.selectbox(
         "焙煎度",
         ["未選択", "浅煎り", "中煎り", "中深煎り", "深煎り"],
         index=2,
+        key="roast_level",
     )
 
     method = st.selectbox(
         "抽出方法",
-        ["未選択", "V60ドリッパー", "カリタウェーブ", "フレンチプレス", "エアロプレス", "エスプレッソ", "その他"],
+        [
+            "未選択",
+            "ドリッパー",
+            "カリタウェーブ",
+            "フレンチプレス",
+            "エアロプレス",
+            "エスプレッソ",
+            "その他",
+        ],
+        key="method",
     )
 
     grind_size = st.selectbox(
         "挽き目",
         ["未選択", "極細挽き", "細挽き", "中細挽き", "中挽き", "中粗挽き", "粗挽き"],
         index=3,
+        key="grind_size",
     )
 
-    dose_g = st.number_input("豆の量 (g)", min_value=0.0, max_value=50.0, value=15.0, step=0.5)
-    water_ml = st.number_input("お湯の量 (ml)", min_value=0, max_value=1000, value=230, step=10)
-    water_temp_c = st.number_input("お湯の温度 (℃)", min_value=70, max_value=100, value=93, step=1)
+    dose_g = st.number_input(
+        "豆の量 (g)",
+        min_value=0.0,
+        max_value=50.0,
+        step=0.5,
+        key="dose_g",
+    )
 
-    # タイマー結果をフォームに反映（編集したければユーザーが上書きも可能）
+    water_ml = st.number_input(
+        "お湯の量 (ml)",
+        min_value=0,
+        max_value=1000,
+        step=10,
+        key="water_ml",
+    )
+
+    water_temp_c = st.number_input(
+        "お湯の温度 (℃)",
+        min_value=70,
+        max_value=100,
+        step=1,
+        key="water_temp_c",
+    )
+
     total_time_sec = st.number_input(
         "総抽出時間 (秒)",
         min_value=0,
         max_value=1200,
-        value=st.session_state["total_time_sec"] or 0,
         step=1,
+        key="total_time_sec_input",
+        value=st.session_state["total_time_sec"] or 0,
     )
 
-    rating = st.slider("味の評価", min_value=1, max_value=5, value=4)
-    notes = st.text_area("味のメモ", placeholder="例：明るい酸、後味すっきり、チョコっぽい甘さ など")
+    rating = st.slider(
+        "味の評価",
+        min_value=1,
+        max_value=5,
+        key="rating",
+    )
+
+    notes = st.text_area(
+        "味のメモ",
+        key="notes",
+    )
 
     submitted = st.form_submit_button("記録する")
 
+
+# =========================
+# Supabase INSERT
+# =========================
 if submitted:
     supabase = get_supabase_client()
 
-    # brewed_at は date だけなので、いったん 00:00:00 として timestamptz に入れる（簡易）
-    brewed_at_dt = datetime.datetime.combine(brewed_at, datetime.time(0, 0))
+    brewed_at_dt = datetime.datetime.combine(
+        brewed_at,
+        datetime.time(0, 0),
+    )
 
     payload = {
         "user_id": user_id,
@@ -123,17 +246,12 @@ if submitted:
     }
 
     try:
-        res = supabase.table("brews").insert(payload).execute()
+        supabase.table("brews").insert(payload).execute()
 
-        # res.data に挿入された行が返ってきます（通常1件）
-        inserted = res.data[0] if res.data else None
-        st.success("記録しました ✅")
+        st.session_state["flash"] = "記録しました ✅"
+        st.session_state["do_reset"] = True
+        st.rerun()
 
-        if inserted and "id" in inserted:
-            st.write(f"保存ID: `{inserted['id']}`")
-
-        # 1回記録したらタイマー結果をリセット
-        st.session_state["total_time_sec"] = None
 
     except Exception as e:
         st.error("保存に失敗しました ❌")
