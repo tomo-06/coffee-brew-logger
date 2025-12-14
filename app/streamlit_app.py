@@ -4,6 +4,8 @@ import datetime
 
 import streamlit as st
 
+from streamlit_autorefresh import st_autorefresh
+
 from supabase_client import get_supabase_client
 
 
@@ -34,6 +36,9 @@ if "flash" not in st.session_state:
 
 if "do_reset" not in st.session_state:
     st.session_state["do_reset"] = False
+
+if "set_timer_result" not in st.session_state:
+    st.session_state["set_timer_result"] = None
 
 
 # =========================
@@ -83,6 +88,7 @@ st.divider()
 # =========================
 # タイマー
 # =========================
+# --- タイマー機能 ---
 st.subheader("抽出タイマー")
 
 col1, col2 = st.columns(2)
@@ -99,16 +105,26 @@ with col2:
             st.warning("先に START を押してください")
         else:
             elapsed = int(time.time() - st.session_state["timer_start"])
+            st.session_state["set_timer_result"] = elapsed
             st.session_state["total_time_sec"] = elapsed
             st.session_state["timer_start"] = None
             st.success(f"総抽出時間: {elapsed} 秒")
 
+# 計測中は1秒ごとに自動更新（リアルタイム表示）
 if st.session_state["timer_start"] is not None:
-    st.info("計測中... STOP を押すと総抽出時間が記録されます")
-elif st.session_state["total_time_sec"] is not None:
-    st.write(f"⏱ 計測結果: **{st.session_state['total_time_sec']} 秒**")
+    st_autorefresh(interval=1000, key="timer_refresh")  # 1000ms = 1秒
 
-st.divider()
+    elapsed_now = int(time.time() - st.session_state["timer_start"])
+    mm, ss = divmod(elapsed_now, 60)
+    st.write(f"⏱ 計測中: **{mm:02d}:{ss:02d}**（{elapsed_now} 秒）")
+
+    st.caption("STOP を押すと総抽出時間が記録されます")
+
+elif st.session_state["total_time_sec"] is not None:
+    st.write(f"✅ 計測結果: **{st.session_state['total_time_sec']} 秒**")
+
+else:
+    st.caption("START を押すと計測が始まります")
 
 
 # =========================
@@ -116,14 +132,15 @@ st.divider()
 # =========================
 st.subheader("抽出条件の記録")
 
-# 次回rerunの冒頭でフォームを初期化する（ウィジェット生成前に実行）
+# 次回rerunの冒頭でフォームを初期化 or タイマー結果反映
 if st.session_state["do_reset"]:
-    for k, v in FORM_DEFAULTS.items():
-        st.session_state[k] = v
-
-    st.session_state["timer_start"] = None
-    st.session_state["total_time_sec"] = None
+    reset_form()
     st.session_state["do_reset"] = False
+
+if st.session_state["set_timer_result"] is not None:
+    st.session_state["total_time_sec_input"] = st.session_state["set_timer_result"]
+    st.session_state["set_timer_result"] = None
+
 
 with st.form("brew_form"):
     brewed_at = st.date_input(
@@ -145,7 +162,6 @@ with st.form("brew_form"):
     roast_level = st.selectbox(
         "焙煎度",
         ["未選択", "浅煎り", "中煎り", "中深煎り", "深煎り"],
-        index=2,
         key="roast_level",
     )
 
@@ -166,7 +182,6 @@ with st.form("brew_form"):
     grind_size = st.selectbox(
         "挽き目",
         ["未選択", "極細挽き", "細挽き", "中細挽き", "中挽き", "中粗挽き", "粗挽き"],
-        index=3,
         key="grind_size",
     )
 
@@ -200,7 +215,6 @@ with st.form("brew_form"):
         max_value=1200,
         step=1,
         key="total_time_sec_input",
-        value=st.session_state["total_time_sec"] or 0,
     )
 
     rating = st.slider(
@@ -240,8 +254,8 @@ if submitted:
         "dose_g": float(dose_g),
         "water_ml": int(water_ml) if water_ml else None,
         "water_temp_c": int(water_temp_c) if water_temp_c else None,
-        "total_time_sec": int(total_time_sec) if total_time_sec else None,
-        "rating": int(rating) if rating else None,
+        "total_time_sec": int(total_time_sec),
+        "rating": int(rating),
         "notes": notes or None,
     }
 
