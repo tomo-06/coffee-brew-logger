@@ -54,6 +54,7 @@ FORM_DEFAULTS = {
     "dose_g": 15.0,
     "water_ml": 200,
     "water_temp_c": 90,
+    "drip_count": 1,
     "total_time_sec_input": 0,
     "rating": 4,
     "notes": "",
@@ -209,6 +210,14 @@ with st.form("brew_form"):
         key="water_temp_c",
     )
 
+    drip_count = st.number_input(
+        "ドリップ回数",
+        min_value=1,
+        max_value=10,
+        step=1,
+        key="drip_count",
+    )
+
     total_time_sec = st.number_input(
         "総抽出時間 (秒)",
         min_value=0,
@@ -254,6 +263,7 @@ if submitted:
         "dose_g": float(dose_g),
         "water_ml": int(water_ml) if water_ml else None,
         "water_temp_c": int(water_temp_c) if water_temp_c else None,
+        "drip_count": int(drip_count),
         "total_time_sec": int(total_time_sec),
         "rating": int(rating),
         "notes": notes or None,
