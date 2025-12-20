@@ -1,11 +1,9 @@
 # app/app.py
 import time
 import datetime
-
 import streamlit as st
-
 from streamlit_autorefresh import st_autorefresh
-
+from auth import require_login, logout
 from supabase_client import get_supabase_client
 
 
@@ -20,6 +18,20 @@ st.set_page_config(
 
 st.title("Coffee Brew Logger ☕")
 st.caption("抽出条件＋タイマー付きの簡易ログアプリ（MVP）")
+
+
+# =========================
+# login管理
+# =========================
+supabase = get_supabase_client()
+user = require_login(supabase)
+
+with st.sidebar:
+    st.write(f"ログイン中: {user.email}")
+    if st.button("ログアウト"):
+        logout(supabase)
+
+user_id = user.id  # ★ これが auth.uid()
 
 
 # =========================
