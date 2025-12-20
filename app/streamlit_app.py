@@ -89,16 +89,6 @@ if st.session_state["flash"]:
 
 
 # =========================
-# ユーザー選択
-# =========================
-st.subheader("誰が淹れている？")
-user = st.radio("ユーザー", ["自分", "友人"], horizontal=True)
-user_id = "me" if user == "自分" else "friend"
-
-st.divider()
-
-
-# =========================
 # タイマー
 # =========================
 # --- タイマー機能 ---
@@ -257,8 +247,6 @@ with st.form("brew_form"):
 # Supabase INSERT
 # =========================
 if submitted:
-    supabase = get_supabase_client()
-
     brewed_at_dt = datetime.datetime.combine(
         brewed_at,
         datetime.time(0, 0),
